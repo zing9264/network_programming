@@ -36,12 +36,16 @@ struct {
     {"exe","text/plain" },
     {0,0} };
 
-int select_handle(int fd,char *buffer,long ret)
+int select_handle(int fd)
 {
     int j, file_fd, buflen, len;
     long i;
     char * fstr;
-
+    char *buffer;
+    long ret;
+    
+    printf("reading\n");
+    ret = read(fd,buffer,BUFSIZE);   // 讀取瀏覽器要求 
     printf("%s\n",buffer);
     if (ret==0||ret==-1) { //連線有問題
         exit(3);
@@ -180,38 +184,40 @@ int main(void)
         perror("select");
         exit(4);
         }
-        for(i = 0; i <= fdmax; i++) {  // 在現存的連線中尋找需要讀取的資料
+
+
+        for(i = listenfd; i <= fdmax; i++) {  // 在現存的連線中尋找需要讀取的資料
             if (FD_ISSET(i, &tmp_fds)) { // 找到一個
-                if (i == listenfd) {
-                    // handle new connections
-                    sin_size = sizeof their_addr;
-                    printf("accept\n");
-                    new_fd = accept(listenfd, (struct sockaddr *)&their_addr, &sin_size);
-                    if (new_fd == -1) {
-                        perror("accept");
-                        continue;
-                    }
-                    else {
-                    FD_SET(new_fd, &master); // 新增到 master set
-                        if (new_fd > fdmax) { // 持續追蹤最大的 fd
-                            fdmax = new_fd;
-                            printf("new Max fd is %d",fdmax);
+                printf("i=%d,listen=%d\n",i,listenfd);
+                    if (i == listenfd) {//是sever的socket處理連線
+                        // handle new connections
+                        sin_size = sizeof their_addr;
+                        printf("----accept----\n");
+                        new_fd = accept(listenfd, (struct sockaddr *)&their_addr, &sin_size);
+                        if (new_fd == -1) {
+                            perror("accept");
+                            continue;
                         }
-                    printf("selectserver: new connection on socket %d\n",new_fd);
+                        else {
+                        FD_SET(new_fd, &master); // 新增到 master set
+                            if (new_fd > fdmax) { // 持續追蹤最大的 fd
+                                fdmax = new_fd;
+                                printf("new Max fd is %d",fdmax);
+                            }
+                        printf("selectserver: new connection on socket %d\n",new_fd);
+                        }
                     }
-                }
-                else {
-                    // 處理來自 client 的資料
-                    printf("recving");
-                    nbyte = recv(i, buf, sizeof buf, 0);
-                    printf("select_handle\n");
-                    select_handle(new_fd, buf,nbyte);
-                    printf("selectserver: socket %d hung up\n", i);
-                    close(i);
-                    FD_CLR(i, &master); // 從 master set 中移除
-                }
+                    else{
+                        // 處理來自 client 的資料
+                        printf("recving");
+                        printf("select_handle\n");
+                        select_handle(i);
+                        close(i);
+                        printf("selectserver: socket %d hung up\n", i);
+                        FD_CLR(i, &master); // 從 master set 中移除
+                    }
+            }  
         }
-    }
     }
     return 0;
 }
